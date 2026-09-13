@@ -4,6 +4,11 @@ A native menu bar app that turns the MacBook lid into a live, physical animation
 
 This is a local, ad-hoc-signed build. It is not notarized or affiliated with Apple. The illusion is a Mac interpretation; it is not Apple's proprietary animation or a lock-screen replacement.
 
+Get foldable for Mac:
+
+
+
+
 ## Open
 
 Open **Foldable.app**, or drag it from the disk image into Applications. Click the laptop/angle in the menu bar to open Foldable. The effect starts off each launch.
