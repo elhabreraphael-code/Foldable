@@ -40,6 +40,19 @@ enum RenderChecks {
         try require(brightness(sharp, left - 8, top) < 0.04, "Blur-off unexpectedly feathers the border")
         try require(brightness(blurred, leftEdge(at: bottom) - 8, bottom) < 0.04, "Blur is not tighter near the hinge")
         try require(brightness(blurred, 500, top) > 0.99, "Edge treatment changed the image interior")
+        let identity = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: 0, sourceTexture: source))
+        for (x, y) in [(0, 0), (999, 624), (0, 312), (500, 312)] {
+            try require(brightness(identity, x, y) > 0.99, "Aligned frame must preserve even the edge pixels")
+        }
+        let transparent = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: angle, opacity: 0, sourceTexture: source))
+        let half = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: 0, opacity: 0.5, sourceTexture: source))
+        try require(transparent.colorAt(x: 500, y: 312)!.alphaComponent == 0, "Handoff must reveal the live desktop completely")
+        try require(abs(half.colorAt(x: 500, y: 312)!.alphaComponent - 0.5) < 0.01, "Handoff alpha must survive Metal output")
+        if let bytes = half.bitmapData {
+            let offset = 312 * half.bytesPerRow + 500 * 4
+            try require((0..<4).allSatisfy { abs(Int(bytes[offset + $0]) - 128) <= 1 }, "Output must be premultiplied for correct window compositing")
+        }
+        print("PASS: exact aligned edges, transparent handoff and premultiplied compositing")
         print("PASS: blur crosses both borders, softens inward, tightens near the hinge, and respects blur-off")
     }
 }

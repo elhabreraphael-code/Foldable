@@ -20,6 +20,10 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     private var blurDirty = true
     private let inFlight = DispatchSemaphore(value: 2)
     var delta: Float = 0
+    var opacity: Float = 1
+    var geometryWeight: Float = 1
+    private var presentationGeneration = 0
+    func invalidatePresentation() { presentationGeneration += 1 }
     var blur = true
     var blurStrength: Float = 1.0
     var warp = true
@@ -100,7 +104,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     @discardableResult
-    func preview(to url: URL?, angle: Float, sourceTexture: MTLTexture? = nil) throws -> CGImage {
+    func preview(to url: URL?, angle: Float, opacity: Float = 1, sourceTexture: MTLTexture? = nil) throws -> CGImage {
         let previewSource = sourceTexture ?? texture
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 1000, height: 625, mipmapped: false)
         descriptor.usage = [.renderTarget]
@@ -119,6 +123,8 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
         encoder.setRenderPipelineState(pipeline)
         bindTextures(encoder, source: previewSource)
         encoder.setFragmentBytes(&params, length: MemoryLayout.size(ofValue: params), index: 0)
+        var alpha = opacity
+        encoder.setFragmentBytes(&alpha, length: MemoryLayout<Float>.size, index: 1)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         command.commit(); command.waitUntilCompleted()
@@ -145,12 +151,15 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
         let retainedTexture = desktopTexture
         if blur && abs(delta) > 0.003 { prepareBlur(command, source: source) }
         guard let encoder = command.makeRenderCommandEncoder(descriptor: pass) else { inFlight.signal(); return }
-        var params = SIMD4<Float>(delta, Float(view.drawableSize.width / max(1, view.drawableSize.height)), blur ? blurStrength : 0, projectionMode)
+        var params = SIMD4<Float>(delta * geometryWeight, Float(view.drawableSize.width / max(1, view.drawableSize.height)), blur ? blurStrength : 0, projectionMode)
         encoder.setRenderPipelineState(pipeline)
         bindTextures(encoder, source: source)
         encoder.setFragmentBytes(&params, length: MemoryLayout.size(ofValue: params), index: 0)
+        var alpha = opacity
+        encoder.setFragmentBytes(&alpha, length: MemoryLayout<Float>.size, index: 1)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
+        let generation = presentationGeneration
         command.present(drawable)
         command.addCompletedHandler { [weak self, inFlight] buffer in
             // Capture surfaces must remain alive until the GPU finishes reading them.
@@ -159,7 +168,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
             if let error = buffer.error { self?.logger.error("GPU command failed: \(error.localizedDescription, privacy: .public)") }
             DispatchQueue.main.async {
                 if buffer.error == nil { self?.completedDraws += 1 }
-                self?.onRenderComplete?(buffer.error == nil)
+                if self?.presentationGeneration == generation { self?.onRenderComplete?(buffer.error == nil) }
             }
         }
         command.commit()
@@ -212,8 +221,12 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     fragment float4 fragmentMain(VertexOut in [[stage_in]], texture2d<float> art [[texture(0)]],
         texture2d<float> b1 [[texture(1)]], texture2d<float> b2 [[texture(2)]],
         texture2d<float> b3 [[texture(3)]], texture2d<float> b4 [[texture(4)]],
-        constant float4 &p [[buffer(0)]]) {
+        constant float4 &p [[buffer(0)]], constant float &opacity [[buffer(1)]]) {
         constexpr sampler s(filter::linear, address::clamp_to_edge);
+        float alpha = clamp(opacity, 0.0, 1.0);
+        if (alpha == 0.0) return float4(0);
+        // Exact identity avoids a dark antialiased border at the handoff.
+        if (abs(p.x) < 0.000001) return float4(art.sample(s, in.uv).rgb * alpha, alpha);
         float2 uv = in.uv;
         float height = 1.0 - uv.y;
         float a = clamp(p.x, -0.65, 1.25);
@@ -244,7 +257,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
                         * (1.0 - smoothstep(1.0 - feather, 1.0 + feather, uv));
         float mask = coverage.x * coverage.y;
         float closing = smoothstep(0.90, 1.60, max(p.x, 0.0));
-        return float4(mix(float3(0.008, 0.009, 0.012), color, mask) * (1.0 - 0.82 * closing), 1);
+        return float4(mix(float3(0.008, 0.009, 0.012), color, mask) * (1.0 - 0.82 * closing) * alpha, alpha);
     }
     """
 }

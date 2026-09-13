@@ -8,17 +8,24 @@ final class DesktopCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
     private var cancelled = false
     private var configuration: SCStreamConfiguration?
-    private var active = false
+    private var requestedFPS: Int32 = 60
+    private var appliedFPS: Int32 = 60
     private var reconfiguring = false
-    func setActive(_ value: Bool) {
-        guard active != value, !reconfiguring, let stream, let configuration else { return }
-        active = value
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: value ? 60 : 5)
+    // Called by the main-run-loop motion timer; SCStream callbacks use .main too.
+    func setActive(_ value: Bool, framesPerSecond: Int = 60) {
+        requestedFPS = value ? Int32(min(120, max(30, framesPerSecond))) : 5
+        guard !reconfiguring, requestedFPS != appliedFPS,
+              let stream, let configuration else { return }
         reconfiguring = true
         Task { @MainActor in
             defer { reconfiguring = false }
-            do { try await stream.updateConfiguration(configuration) }
-            catch { if !cancelled { onError?(error) } }
+            // Do not lose a rapid open/close request while an update is awaiting.
+            while !cancelled, self.stream === stream, requestedFPS != appliedFPS {
+                let fps = requestedFPS
+                configuration.minimumFrameInterval = CMTime(value: 1, timescale: fps)
+                do { try await stream.updateConfiguration(configuration); appliedFPS = fps }
+                catch { if !cancelled { onError?(error) }; break }
+            }
         }
     }
     var onFrame: ((CVPixelBuffer) -> Void)?
@@ -26,7 +33,7 @@ final class DesktopCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private(set) var frames = 0
 
     @MainActor
-    func start(displayID: CGDirectDisplayID) async throws {
+    func start(displayID: CGDirectDisplayID, framesPerSecond: Int = 60) async throws {
         // The menu bar app's overlay is hidden at rest. Include offscreen windows
         // when discovering the app that must be excluded from the display stream.
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
@@ -43,10 +50,12 @@ final class DesktopCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let mode = CGDisplayCopyDisplayMode(displayID)
         let width = mode?.pixelWidth ?? CGDisplayPixelsWide(displayID)
         let height = mode?.pixelHeight ?? CGDisplayPixelsHigh(displayID)
-        let scale = min(1, 3840.0 / Double(max(width, height)))
-        config.width = max(2, Int(Double(width) * scale))
-        config.height = max(2, Int(Double(height) * scale))
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 5)
+        config.width = max(2, width)
+        config.height = max(2, height)
+        // Begin at full cadence; the first opening frames must not arrive at 5 Hz.
+        requestedFPS = Int32(min(120, max(30, framesPerSecond)))
+        appliedFPS = requestedFPS
+        config.minimumFrameInterval = CMTime(value: 1, timescale: requestedFPS)
         self.configuration = config
         config.queueDepth = 3
         config.pixelFormat = kCVPixelFormatType_32BGRA

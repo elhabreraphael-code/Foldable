@@ -62,7 +62,7 @@ struct FoldDashboard: View {
                     Image(systemName: "lock.shield").font(.system(size: 11))
                     Text("On your Mac. In the moment.").font(.system(size: 11))
                     Spacer()
-                    Text("FOLDABLE  /  1.0").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.3)
+                    Text("FOLDABLE  /  1.1").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.3)
                 }.foregroundStyle(.secondary)
             }.padding(.horizontal, 30).padding(.top, 30).padding(.bottom, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -214,7 +214,7 @@ struct FoldDashboard: View {
             card {
                 Text("A Mac interpretation of the folding illusion.").font(.system(size: 12, weight: .medium))
                 Text("The effect runs on the built-in display while you’re unlocked. Normal lid-close sleep still applies. Protected video may appear blank; transformed pixels don’t move the underlying click targets.").font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Text("Foldable 1.0 · Local build, ad-hoc signed; not notarized. MacBook Pro hardware testing is still required.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("Foldable 1.1 · Local build, ad-hoc signed; not notarized. MacBook Pro hardware testing is still required.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 16) {
                     Link("Built on Lid Plane by Jhey ↗", destination: URL(string: "https://github.com/jh3y/lid-plane")!)
                     Button("GPL-3.0 license") { if let url = Bundle.main.url(forResource: "LICENSE", withExtension: nil) { NSWorkspace.shared.open(url) } }.buttonStyle(.plain)
