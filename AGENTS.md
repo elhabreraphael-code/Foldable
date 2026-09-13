@@ -5,10 +5,10 @@ Standalone macOS SwiftPM menu bar app. Work from this directory using SwiftPM. N
 ## Commands
 
 - Build without launching: `./script/build_fold.sh release`.
-- Build and launch the bundle: `open dist/Fold.app`.
+- Build and launch the bundle: `open dist/Foldable.app`.
 - Motion checks: `swift run LidPlaneChecks` (custom executable, not XCTest).
 - Metal preview: `swift run LidPlane --preview`.
-- Visible-pixel regression and hotkey dispatch: `open -n -W dist/Fold.app --args --window-check`. Briefly shows generated artwork and exits; tell the user before running it.
+- Visible-pixel regression and hotkey dispatch: `open -n -W dist/Foldable.app --args --window-check`. Briefly shows generated artwork and exits; tell the user before running it.
 - Package without changing the everyday app: `./script/package_fold.sh`.
 - Matching source is exported automatically by `script/package_fold.sh`.
 
@@ -17,6 +17,7 @@ Standalone macOS SwiftPM menu bar app. Work from this directory using SwiftPM. N
 - Start off, as a menu bar app, without stealing focus.
 - Keep the overlay click-through and non-key; normal input passes through.
 - Keep sensing on an independent timer while the overlay is hidden.
+- Preserve the gradual transparent handoff near the activation ceiling, premultiplied output alpha and matching capture/layer sRGB color spaces. Wake alignment must wait for a fresh post-wake capture and sensor sample; never replay pre-lock frames.
 - Set the Metal layer's `contentsScale` to the display backing scale when sizing it. Zero scale produces invisible content even when GPU commands succeed. Keep the visible-pixel regression check.
 - Soften warped image coverage with the progressive blur; do not return a hard background colour outside UV bounds before blurring the boundary. Keep `RenderChecks` in the preview command: it verifies blur outside both side edges, tighter falloff near the hinge and blur-off behaviour.
 - Retain capture buffers until GPU work completes; exclude this app from capture.

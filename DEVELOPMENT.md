@@ -7,6 +7,7 @@ Read README.md for build instructions, checks, limitations and attribution. `scr
 - `Renderer.swift`: Metal perspective and Gaussian blur, original vector artwork.
 - `DesktopCapture.swift`: ScreenCaptureKit and adaptive capture frame rate.
 - `Sensor.swift`: read-only hinge HID report.
+- `OverlayHandoff.swift`: boundary flattening/opacity and fresh-sample wake alignment.
 - `MotionSmoothing.swift`: refresh-rate-independent reversible easing.
 - `Tests/`: motion/safety and smoothing checks.
 
