@@ -6,7 +6,7 @@ This is a local, ad-hoc-signed build. It is not notarized or affiliated with App
 
 Get foldable for Mac:
 
-
+[⬇ Download Foldable for Mac](https://github.com/elhabreraphael-code/Foldable/releases/tag/v1.0.0)
 
 
 ## Open
