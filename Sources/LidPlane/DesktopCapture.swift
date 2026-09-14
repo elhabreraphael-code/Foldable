@@ -38,6 +38,7 @@ final class DesktopCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         // when discovering the app that must be excluded from the display stream.
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         // A clamshell/display transition can cancel us while discovery is awaiting.
+        try Task.checkCancellation()
         guard !cancelled else { throw CancellationError() }
         guard let display = content.displays.first(where: { $0.displayID == displayID }),
               let ownApp = content.applications.first(where: { $0.processID == ProcessInfo.processInfo.processIdentifier }) else {
@@ -74,16 +75,19 @@ final class DesktopCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         NSLog("Desktop capture started, %d x %d; own app excluded", config.width, config.height)
     }
 
+    // Mark cancellation synchronously before an async stop task is scheduled.
+    func cancel() { cancelled = true; onFrame = nil; onError = nil }
+
     @MainActor
     func stop() async {
-        cancelled = true
+        cancel()
         let current = stream
         stream = nil
         try? await current?.stopCapture()
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard self.stream === stream, type == .screen, sampleBuffer.isValid,
+        guard !cancelled, self.stream === stream, type == .screen, sampleBuffer.isValid,
               let metadata = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let status = metadata.first?[.status] as? Int, status == SCFrameStatus.complete.rawValue,
               let pixelBuffer = sampleBuffer.imageBuffer else { return }

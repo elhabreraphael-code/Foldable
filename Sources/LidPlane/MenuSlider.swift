@@ -9,9 +9,12 @@ final class MenuSlider: NSView {
     private let label = NSTextField(labelWithString: "")
     private let title: String
     private let step: Double
+    private let suffix: String
+    private let valueScale: Double
     private let onChange: (Double) -> Void
 
-    init(title: String, value: Double, range: ClosedRange<Double>, step: Double, enabled: Bool = true, onChange: @escaping (Double) -> Void) {
+    init(title: String, value: Double, range: ClosedRange<Double>, step: Double, enabled: Bool = true, suffix: String = "°", valueScale: Double = 1, onChange: @escaping (Double) -> Void) {
+        self.suffix = suffix; self.valueScale = valueScale
         self.title = title; self.step = step; self.onChange = onChange
         slider = NSSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: nil, action: nil)
         super.init(frame: NSRect(x: 0, y: 0, width: 270, height: 60))
@@ -30,6 +33,6 @@ final class MenuSlider: NSView {
         updateLabel(); onChange(slider.doubleValue)
     }
     private func updateLabel() {
-        label.stringValue = "\(title): \(slider.doubleValue.formatted(.number.precision(.fractionLength(0...1))))°"
+        label.stringValue = "\(title): \((slider.doubleValue * valueScale).formatted(.number.precision(.fractionLength(0...1))))\(suffix)"
     }
 }

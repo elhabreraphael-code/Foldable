@@ -15,8 +15,9 @@ enum RenderChecks {
         pixels.withUnsafeBytes {
             source.replace(region: MTLRegionMake2D(0, 0, 1600, 1000), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: 6400)
         }
-        let oldSettings = (renderer.blur, renderer.warp, renderer.perspective)
-        defer { (renderer.blur, renderer.warp, renderer.perspective) = oldSettings }
+        let oldSettings = (renderer.blur, renderer.warp, renderer.perspective, renderer.foldStyle)
+        defer { (renderer.blur, renderer.warp, renderer.perspective, renderer.foldStyle) = oldSettings }
+        renderer.foldStyle = 0
         renderer.warp = true; renderer.perspective = true; renderer.blur = true
         let angle: Float = 0.6
         let blurred = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: angle, sourceTexture: source))
@@ -52,6 +53,23 @@ enum RenderChecks {
             let offset = 312 * half.bytesPerRow + 500 * 4
             try require((0..<4).allSatisfy { abs(Int(bytes[offset + $0]) - 128) <= 1 }, "Output must be premultiplied for correct window compositing")
         }
+        renderer.foldStyle = 1
+        let origami = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: angle, sourceTexture: source))
+        let origamiIdentity = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: 0, sourceTexture: source))
+        var difference = 0.0
+        for y in stride(from: 10, to: 625, by: 20) {
+            for x in stride(from: 10, to: 1000, by: 20) {
+                difference += Double(abs(brightness(origami, x, y) - brightness(sharp, x, y)))
+                try require(brightness(origamiIdentity, x, y) > 0.99, "Origami must become exact identity at zero")
+            }
+        }
+        try require(difference > 20, "V2 must have visibly different geometry from V1")
+        for style in [Float(0), 0.5, 1] {
+            renderer.foldStyle = style
+            let faded = NSBitmapImageRep(cgImage: try renderer.preview(to: nil, angle: angle, opacity: 0.25, sourceTexture: source))
+            try require(abs(faded.colorAt(x: 500, y: 500)!.alphaComponent - 0.25) < 0.01, "Style morph must preserve alpha")
+        }
+        print("PASS: distinct Origami geometry, identity at zero, and transparent compositing during style morphs")
         print("PASS: exact aligned edges, transparent handoff and premultiplied compositing")
         print("PASS: blur crosses both borders, softens inward, tightens near the hinge, and respects blur-off")
     }

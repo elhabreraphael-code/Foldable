@@ -10,8 +10,8 @@
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>LSUIElement</key><true/>
-  <key>CFBundleShortVersionString</key><string>1.1.0</string>
-  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>1.1.1</string>
+  <key>CFBundleVersion</key><string>5</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>NSHumanReadableCopyright</key><string>Based on Lid Plane. Copyright © 2026 Jhey. GPL-3.0-or-later.</string>
 </dict></plist>

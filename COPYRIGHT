@@ -15,9 +15,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program in LICENSE. If not, see https://www.gnu.org/licenses/.
 
-Corresponding source and build instructions are available alongside each
-versioned app download at https://github.com/jh3y/lid-plane/releases.
-Choose the source archive matching the app version and see DEVELOPMENT.md.
+Upstream Lid Plane source is available at https://github.com/jh3y/lid-plane.
+For this independent Foldable 1.1.1 build, matching Corresponding Source is
+provided alongside the binary in Foldable-1.1.1-Final-source.zip. See DEVELOPMENT.md.
 
 Releases v0.3.1 and earlier were distributed under MIT. Their existing
 permissions remain unchanged; LICENSE-MIT preserves that historical notice.
@@ -29,3 +29,15 @@ Modified on September 13, 2026: custom native interface, original artwork and ic
 preview controls, adaptive screen capture, display-refresh smoothing, blur
 optimization, optional user-selected login item, lock handling and packaging.
 Fold is an independent derivative, not an official Lid Plane or Apple release.
+
+Modified on September 14, 2026 for Foldable 1.1.1: native adaptive settings,
+continuous spring motion, quintic handoff, just-in-time capture, energy controls,
+idle rendering/buffer release, capture cancellation and regression checks.
+
+Modified on September 14, 2026 for 1.1.1 Final (build 4): Origami Beta renderer,
+staged desktop handoff, menu-bar tuning, native toolbar sizing, configurable
+shortcut registration/recorder, timed pause, looping preview and final checks.
+
+Modified on September 14, 2026 for 1.1.1 Final (build 5): continuous opening
+motion, interpolated boundary handoff, latency release at the activation ceiling,
+matching preview motion and quantized opening regression checks.

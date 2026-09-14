@@ -1,11 +1,15 @@
-# Distribution of Foldable 1.1.0
+# Distribution of Foldable 1.1.1 Final (build 5)
 
-This delivery contains a locally built, ad-hoc-signed Apple silicon application. It has not been notarized by Apple. These files are ready for a separate v1.1.0 release; this packaging step does not upload them.
+This local Apple silicon application is ad-hoc signed and has not been notarized. Packaging does not upload or publish a release, install signing identities, change permissions, or replace the everyday installed app.
 
-Build with `./script/build_fold.sh release`. Bundle LICENSE and COPYRIGHT before signing. Distribute the complete matching source alongside app binaries, under GPL-3.0-or-later; retain the historical LICENSE-MIT in source. The upstream runtime target remains LidPlane, and the app bundle identity is app.fold.mac.
+Build using `./script/build_fold.sh release`. Verify the bundle and run the checks described in README.md. Package that exact bundle without recompiling:
 
-The deliverable source archive excludes .build, .git, temporary diagnostic PNGs and prior upstream binaries. It includes all modified source, build scripts, resources, licenses and this documentation. Source is provided at no additional charge with the binary.
+```sh
+./script/package_fold.sh '../Releases/1.1.1 Final'
+```
 
-Public distribution should use an appropriate Developer ID signing identity, Apple's notarization workflow and real testing on the target MacBook Pro models. Local validation does not prove compatibility with all MacBooks or Gatekeeper acceptance of downloaded copies.
+Deliver `Foldable-1.1.1-Final-arm64.zip`, `Foldable-1.1.1-Final-arm64.dmg`, `Foldable-1.1.1-Final-source.zip`, and `SHA256SUMS.txt` together. The source archive includes all modified source, scripts, resources, LICENSE, COPYRIGHT, and historical LICENSE-MIT. It excludes build caches, Git internals, diagnostic images, and previous binaries. Matching source is provided at no additional charge under GPL-3.0-or-later.
 
-Version 1.1.0 includes the transparent desktop handoff and fresh-frame wake alignment. Local motion/safety tests and generated-artwork GPU checks cover the new behavior. A physical close → sleep → unlock → open check is still needed to assess wake timing on each target Mac.
+The bundle ID is `app.fold.mac`; the runtime target remains `LidPlane`. Binary, source, metadata, and checksums must refer to the same version. See VALIDATION.md for actual local results and remaining physical-device checks. Do not interpret local tests or checksums as notarization, publisher authentication, or compatibility with every MacBook.
+
+This revision retains CFBundleShortVersionString 1.1.1 and increments CFBundleVersion to 5. The earlier build 4 Final release is retained in Archives/1.1.1 Final build 4; build 3 remains in its original release folder. V2 Origami is Beta; Final refers to the app revision.

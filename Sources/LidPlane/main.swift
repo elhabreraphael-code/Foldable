@@ -19,6 +19,9 @@ if CommandLine.arguments.contains("--preview") {
         renderer.perspective = true
         try renderer.preview(to: URL(fileURLWithPath: "dist/perspective.png"), angle: 35 * .pi / 180)
         try RenderChecks.run(renderer)
+        renderer.foldStyle = 1
+        try renderer.preview(to: URL(fileURLWithPath: "dist/origami.png"), angle: 55 * .pi / 180)
+        renderer.foldStyle = 0
         print("Metal render checks passed")
         exit(0)
     } catch { print(error); exit(1) }

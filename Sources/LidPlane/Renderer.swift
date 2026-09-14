@@ -18,16 +18,23 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     private var reducedSource: MTLTexture?
     private var blurFilters: [MPSImageGaussianBlur] = []
     private var blurDirty = true
+    private lazy var downsampler = MPSImageLanczosScale(device: gpu)
+    private var frameRevision = 0
+    private var lastRenderedState: [Double] = []
+    private(set) var skippedUnchangedDraws = 0
+    private(set) var busyDraws = 0
     private let inFlight = DispatchSemaphore(value: 2)
     var delta: Float = 0
     var opacity: Float = 1
     var geometryWeight: Float = 1
     private var presentationGeneration = 0
-    func invalidatePresentation() { presentationGeneration += 1 }
+    func invalidatePresentation() { presentationGeneration += 1; lastRenderedState = [] }
     var blur = true
     var blurStrength: Float = 1.0
     var warp = true
     var perspective = false
+    var foldStyle: Float = 0
+    var foldDepth: Float = 1
     private var projectionMode: Float { warp ? (perspective ? 2 : 1) : 0 }
     var tick: (() -> Void)?
     var didDraw = false
@@ -57,6 +64,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
         let result = CVMetalTextureCacheCreateTextureFromImage(nil, textureCache, pixelBuffer, nil, .bgra8Unorm,
             CVPixelBufferGetWidth(pixelBuffer), CVPixelBufferGetHeight(pixelBuffer), 0, &wrapped)
         guard result == kCVReturnSuccess, let wrapped else { return false }
+        frameRevision += 1
         desktopTexture = wrapped
         desktopBuffer = pixelBuffer
         blurDirty = true
@@ -66,6 +74,9 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     func useArtwork() {
         desktopTexture = nil
         desktopBuffer = nil
+        blurLevels.removeAll(); reducedSource = nil; blurFilters.removeAll()
+        if let textureCache { CVMetalTextureCacheFlush(textureCache, 0) }
+        frameRevision += 1
         blurDirty = true
     }
 
@@ -88,7 +99,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
             blurDirty = true
         }
         if blurDirty, let reducedSource {
-            MPSImageLanczosScale(device: gpu).encode(commandBuffer: command, sourceTexture: source, destinationTexture: reducedSource)
+            downsampler.encode(commandBuffer: command, sourceTexture: source, destinationTexture: reducedSource)
             for (filter, destination) in zip(blurFilters, blurLevels) {
                 filter.encode(commandBuffer: command, sourceTexture: reducedSource, destinationTexture: destination)
             }
@@ -125,6 +136,8 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&params, length: MemoryLayout.size(ofValue: params), index: 0)
         var alpha = opacity
         encoder.setFragmentBytes(&alpha, length: MemoryLayout<Float>.size, index: 1)
+        var style = SIMD2<Float>(foldStyle, foldDepth)
+        encoder.setFragmentBytes(&style, length: MemoryLayout<SIMD2<Float>>.size, index: 2)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         command.commit(); command.waitUntilCompleted()
@@ -142,7 +155,13 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         attemptedDraws += 1
         tick?()
-        guard inFlight.wait(timeout: .now()) == .success else { return }
+        // Static desktop + settled hinge: reuse the drawable already on screen.
+        // New capture frames and every presentation generation invalidate this.
+        let state = [Double(delta), Double(opacity), Double(geometryWeight), Double(blurStrength),
+            Double(projectionMode), Double(foldStyle), Double(foldDepth), blur ? 1 : 0, Double(view.drawableSize.width),
+            Double(view.drawableSize.height), Double(frameRevision), Double(presentationGeneration)]
+        guard state != lastRenderedState else { skippedUnchangedDraws += 1; return }
+        guard inFlight.wait(timeout: .now()) == .success else { busyDraws += 1; return }
         guard let pass = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let command = queue.makeCommandBuffer() else { missingDrawables += 1; inFlight.signal(); return }
@@ -157,6 +176,8 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&params, length: MemoryLayout.size(ofValue: params), index: 0)
         var alpha = opacity
         encoder.setFragmentBytes(&alpha, length: MemoryLayout<Float>.size, index: 1)
+        var style = SIMD2<Float>(foldStyle, foldDepth)
+        encoder.setFragmentBytes(&style, length: MemoryLayout<SIMD2<Float>>.size, index: 2)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         let generation = presentationGeneration
@@ -172,6 +193,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
             }
         }
         command.commit()
+        lastRenderedState = state
         didDraw = true
     }
 
@@ -221,7 +243,8 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
     fragment float4 fragmentMain(VertexOut in [[stage_in]], texture2d<float> art [[texture(0)]],
         texture2d<float> b1 [[texture(1)]], texture2d<float> b2 [[texture(2)]],
         texture2d<float> b3 [[texture(3)]], texture2d<float> b4 [[texture(4)]],
-        constant float4 &p [[buffer(0)]], constant float &opacity [[buffer(1)]]) {
+        constant float4 &p [[buffer(0)]], constant float &opacity [[buffer(1)]],
+        constant float2 &style [[buffer(2)]]) {
         constexpr sampler s(filter::linear, address::clamp_to_edge);
         float alpha = clamp(opacity, 0.0, 1.0);
         if (alpha == 0.0) return float4(0);
@@ -237,6 +260,29 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
             float t = p.w > 1.5 ? eye.z / max(0.25, eye.z-physical.z) : 1.0;
             float3 hit = eye + t * (physical-eye);
             uv = float2(hit.x/p.y+0.5, 1.0-hit.y);
+        }
+        // V2: three articulated panels collapse toward the hinge. Alternating
+        // depth forms a continuous accordion silhouette, with soft crease light.
+        // Inverse projection avoids holes and remains exactly identity at zero.
+        float material = 1.0;
+        if (p.w > 0.5 && style.x > 0.00001) {
+            float bend = clamp(a * clamp(style.y, 0.5, 1.4), -1.2, 1.2);
+            float compression = max(0.30, cos(bend));
+            float sourceHeight = height / compression;
+            float panelCoordinate = clamp(sourceHeight, 0.0, 0.999999) * 3.0;
+            float panel = floor(panelCoordinate);
+            float local = fract(panelCoordinate);
+            float ridge = (int(panel) % 2 == 0) ? local : 1.0 - local;
+            float panelDepth = sin(abs(bend)) * ridge / 3.0;
+            float panelScale = p.w > 1.5 ? 1.0 / (1.0 + panelDepth * 1.7) : 1.0;
+            float2 origamiUV = float2((in.uv.x - 0.5) / panelScale + 0.5, 1.0 - sourceHeight);
+            float creaseDistance = min(abs(sourceHeight - 1.0/3.0), abs(sourceHeight - 2.0/3.0));
+            float crease = exp(-pow(creaseDistance / 0.016, 2.0));
+            float facing = (int(panel) % 2 == 0) ? 1.0 : 0.90;
+            float origamiLight = 1.0 - sin(abs(bend)) * ((1.0 - facing) + crease * 0.17);
+            float blend = clamp(style.x, 0.0, 1.0);
+            uv = mix(uv, origamiUV, blend);
+            material = mix(1.0, origamiLight, blend);
         }
         // Radius varies across the surface, not just over time. Gaussian levels
         // avoid the repeated edges / speckling from sparse disc sampling.
@@ -257,7 +303,7 @@ final class PlaneRenderer: NSObject, MTKViewDelegate {
                         * (1.0 - smoothstep(1.0 - feather, 1.0 + feather, uv));
         float mask = coverage.x * coverage.y;
         float closing = smoothstep(0.90, 1.60, max(p.x, 0.0));
-        return float4(mix(float3(0.008, 0.009, 0.012), color, mask) * (1.0 - 0.82 * closing) * alpha, alpha);
+        return float4(mix(float3(0.008, 0.009, 0.012), color * material, mask) * (1.0 - 0.82 * closing) * alpha, alpha);
     }
     """
 }
