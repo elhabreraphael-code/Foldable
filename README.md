@@ -2,6 +2,13 @@
 
 A native macOS menu bar app that turns your MacBook lid into a live animation control. Your desktop folds with the hinge, then gently flattens and dissolves back into the real screen as you open it.
 
+Downlaod now: 
+<p align="center">
+  <a href="https://github.com/elhabreraphael-code/Foldable/releases/tag/V1.1.1">
+    <img src="https://img.shields.io/badge/Download_for_Mac-V1.1.1_Final-007AFF?style=for-the-badge&logo=apple&logoColor=white&labelColor=111827" alt="Download Foldable for Mac" height="52">
+  </a>
+</p>
+
 ## Open
 
 Open **Foldable.app**, or drag it from the disk image into Applications. Foldable starts quietly in the menu bar with the effect off. Click its icon or angle for quick settings, then choose **Open Foldable Settings…** for the full window.
